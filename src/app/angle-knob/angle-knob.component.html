@@ -1,0 +1,51 @@
+<div class="knob-wrap" tabindex="0" (keydown)="onKey($event)">
+  <svg viewBox="0 0 220 220"
+       (mousedown)="startDrag($event)"
+       (click)="tapOnce($event)"
+       (wheel)="onWheel($event)">
+
+    <circle cx="110" cy="110" r="100" class="bg"/>
+    <circle cx="110" cy="110" r="88"  class="inner"/>
+
+    <!-- Ticks (angles d’affichage: 0 en haut, horaire) -->
+    <g transform="translate(110,110)">
+      @for (a of minors; track a) {
+        <g [attr.transform]="'rotate(' + a + ')'">
+          <line x1="0" y1="-92" x2="0" y2="-86" class="tick minor" [style.stroke]="tickColor(a)"/>
+        </g>
+      }
+      @for (a of mids; track a) {
+        <g [attr.transform]="'rotate(' + a + ')'">
+          <line x1="0" y1="-92" x2="0" y2="-84" class="tick mid" [style.stroke]="tickColor(a)"/>
+        </g>
+      }
+      @for (a of majors; track a) {
+        <g [attr.transform]="'rotate(' + a + ')'">
+          <line x1="0" y1="-92" x2="0" y2="-80" class="tick major" [style.stroke]="tickColor(a)"/>
+        </g>
+      }
+    </g>
+
+    <!-- Labels cliquables (calculés sur la vraie plage min..max) -->
+    <g class="labels">
+      @for (v of labelVals; track v) {
+        <text
+          [attr.x]="labelXDisp(valueToDisplay(v))"
+          [attr.y]="labelYDisp(valueToDisplay(v))"
+          text-anchor="middle" dominant-baseline="middle"
+          (click)="clickLabelValue(v, $event)">
+          {{ v }}
+        </text>
+      }
+    </g>
+
+    <!-- Curseur : rotation = angle d’affichage -->
+    <g [attr.transform]="'rotate(' + handleRotation + ' 110 110)'">
+      <circle cx="110" cy="24" r="9" class="handle"/>
+    </g>
+
+
+    <text x="110" y="110" text-anchor="middle" class="value">{{ value | number:'1.0-0' }}°</text>
+    <text x="110" y="134" text-anchor="middle" class="label">{{label}}</text>
+  </svg>
+</div>

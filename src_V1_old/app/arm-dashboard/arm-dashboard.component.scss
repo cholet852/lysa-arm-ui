@@ -1,0 +1,4 @@
+.grid{ display:grid; gap:1rem; grid-template-columns: repeat(2, minmax(0,1fr)); }
+.viewer{ margin-top:1rem; padding:1rem; background:#0d0d0d; border-radius:1rem; }
+.logs{ margin-top:1rem; }
+.box{ height:120px; background:#0d0d0d; border:1px solid #222; border-radius:.5rem; overflow:auto; }

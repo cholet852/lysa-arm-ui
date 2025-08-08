@@ -1,0 +1,15 @@
+<div class="grid">
+  <app-joint-card [joint]="0" title="Shoulder" [s]="states[0]"></app-joint-card>
+  <app-joint-card [joint]="1" title="Upper Arm" [s]="states[1]"></app-joint-card>
+  <app-joint-card [joint]="2" title="Elbow" [s]="states[2]"></app-joint-card>
+  <app-joint-card [joint]="3" title="Wrist" [s]="states[3]"></app-joint-card>
+</div>
+
+<div class="viewer">
+  <app-three-viewer [states]="states"></app-three-viewer>
+</div>
+
+<div class="logs">
+  <h4>Logs</h4>
+  <div class="box"></div>
+</div>

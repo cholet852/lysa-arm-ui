@@ -1,0 +1,47 @@
+<div class="card">
+  <div class="header">
+    <h3>{{title}}</h3>
+    <div class="badges">
+      <span class="badge ok" *ngIf="s?.flags?.ok">OK</span>
+      <span class="badge warn" *ngIf="s?.flags?.openLoad">OpenLoad</span>
+      <span class="badge warn" *ngIf="s?.flags?.otw">OTW</span>
+      <span class="badge err" *ngIf="s?.flags?.ot">OT</span>
+    </div>
+  </div>
+
+  <div class="row">
+    <label>Angle</label>
+    <input type="number" [(ngModel)]="targetDeg" (change)="move()"/>
+    <button (click)="bump(-10)">-10°</button>
+    <button (click)="bump(-5)">-5°</button>
+    <input type="range" min="-180" max="180" [(ngModel)]="targetDeg" (change)="move()"/>
+    <button (click)="bump(5)">+5°</button>
+    <button (click)="bump(10)">+10°</button>
+  </div>
+
+  <div class="row">
+    <label>Speed (deg/s)</label>
+    <input type="number" [(ngModel)]="speed" (change)="send('speed',{v:+speed})"/>
+    <label>Accel (deg/s²)</label>
+    <input type="number" [(ngModel)]="accel" (change)="send('accel',{a:+accel})"/>
+  </div>
+
+  <div class="row">
+    <label>Current (mA)</label>
+    <input type="number" [(ngModel)]="current" (change)="send('current',{mA:+current})"/>
+    <label>Microsteps</label>
+    <select [(ngModel)]="micro" (change)="send('micro',{u:+micro})">
+      <option *ngFor="let u of micros" [value]="u">{{u}}</option>
+    </select>
+  </div>
+
+  <div class="row small">
+    <div>Now: <b>{{s?.angle|number:'1.0-1'}}°</b></div>
+    <div>Target: {{s?.target|number:'1.0-1'}}°</div>
+  </div>
+
+  <div class="row">
+    <button (click)="send('home',{})">Home</button>
+    <button (click)="send('reset',{})">Reset</button>
+  </div>
+</div>

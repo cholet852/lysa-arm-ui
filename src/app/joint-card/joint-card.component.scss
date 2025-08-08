@@ -1,0 +1,5 @@
+
+.joint .header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:.4rem; }
+.joint .left{ display:flex; flex-direction:column; gap:.5rem; align-items:flex-start; }
+.joint .right{ display:flex; flex-direction:column; gap:.6rem; }
+label{ color:var(--muted); font-size:.9rem; }

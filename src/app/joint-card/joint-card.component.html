@@ -1,0 +1,80 @@
+
+<div class="card joint">
+  <div class="header">
+    <h3>{{title}}</h3>
+    <span class="badge ok" *ngIf="s?.flags?.ok">OK</span>
+  </div>
+
+  <div class="grid-two">
+    <!-- Left: circular knob + step -->
+    <div class="left">
+      <app-angle-knob 
+        [value]="targetDeg" 
+        [step]="stepSel" 
+        [min]="min" 
+        [max]="max"
+        [zeroAt]="'top'"
+        [clockwise]="true"
+        label="Angle"
+        (valueChange)="onKnobChange($event)" 
+        (commit)="onKnobCommit($event)">
+      </app-angle-knob>
+
+      <div class="row">
+        <label>Step</label>
+        <select [(ngModel)]="stepSel">
+          <option *ngFor="let s of steps" [value]="s">{{s}}°</option>
+        </select>
+        <div class="chips">
+          <div class="chip" (click)="bumpSign(-1)">-step</div>
+          <div class="chip" (click)="bumpSign(+1)">+step</div>
+          <div class="chip" (click)="preset(-90)">-90°</div>
+          <div class="chip" (click)="preset(-45)">-45°</div>
+          <div class="chip" (click)="preset(+45)">+45°</div>
+          <div class="chip" (click)="preset(+90)">+90°</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: params -->
+    <div class="right">
+      <div class="row">
+        <label>Angle</label>
+        <input type="number" [(ngModel)]="targetDeg"
+          (focusin)="editing.angle=true" (blur)="editing.angle=false; commitAngle()"
+          (keyup.enter)="commitAngle()" />
+      </div>
+
+      <div class="row">
+        <label>Speed (deg/s)</label>
+        <input type="number" [(ngModel)]="speed"
+          (focusin)="editing.speed=true" (blur)="editing.speed=false; commitSpeed()"
+          (keyup.enter)="commitSpeed()"/>
+
+        <label>Accel (deg/s²)</label>
+        <input type="number" [(ngModel)]="accel"
+          (focusin)="editing.accel=true" (blur)="editing.accel=false; commitAccel()"
+          (keyup.enter)="commitAccel()"/>
+      </div>
+
+      <div class="row">
+        <label>Current (mA)</label>
+        <input type="number" [(ngModel)]="current"
+          (focusin)="editing.current=true" (blur)="editing.current=false; commitCurrent()"
+          (keyup.enter)="commitCurrent()"/>
+
+        <label>Microsteps</label>
+        <select [(ngModel)]="micro" (focusin)="editing.micro=true" (change)="commitMicro()" (blur)="editing.micro=false">
+          <option *ngFor="let u of micros" [value]="u">{{u}}</option>
+        </select>
+      </div>
+
+      <div class="small">Now: <b>{{ s?.angle  | number:'1.0-1' }}°</b> &nbsp;&nbsp; Target: {{ s?.target | number:'1.0-1' }}°</div>
+
+      <div class="row">
+        <button (click)="send('home',{})">Home</button>
+        <button (click)="send('reset',{})">Reset</button>
+      </div>
+    </div>
+  </div>
+</div>

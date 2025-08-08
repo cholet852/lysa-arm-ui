@@ -1,0 +1,18 @@
+<div class="split">
+  <div class="left">
+    <app-arm-accordion title="Right Arm" [defaultOpen]="true">
+      <app-joint-card [joint]="0" title="Shoulder"   [s]="states[0]"></app-joint-card>
+      <app-joint-card [joint]="1" title="Upper Arm"  [s]="states[1]"></app-joint-card>
+      <app-joint-card [joint]="2" title="Elbow"      [s]="states[2]"></app-joint-card>
+      <app-joint-card [joint]="3" title="Wrist"      [s]="states[3]"></app-joint-card>
+    </app-arm-accordion>
+
+    <app-arm-accordion title="Left Arm (bientôt)" [disabled]="true" [defaultOpen]="false">
+      <!-- Placeholder for future joints -->
+    </app-arm-accordion>
+  </div>
+
+  <div class="right">
+    <app-three-viewer [states]="states"></app-three-viewer>
+  </div>
+</div>

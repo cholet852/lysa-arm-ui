@@ -1,0 +1,19 @@
+.knob-wrap{ display:flex; align-items:center; justify-content:center; outline:none; }
+svg{ width:260px; height:260px; cursor:grab; user-select:none; }
+svg:active{ cursor:grabbing; }
+
+.bg{ fill:#121622; stroke:#2a3146; stroke-width:2; }
+.inner{ fill:#0f1320; stroke:#222a3f; stroke-width:2; }
+
+.tick{ stroke-linecap:round; }
+.tick.minor{ stroke-width:2; opacity:.8; }
+.tick.mid{ stroke-width:3; opacity:.9; }
+.tick.major{ stroke-width:4; }
+
+.labels text{ fill:#a7b1c2; font-size:11px; cursor:pointer; }
+.labels text:hover{ fill:#eaeef5; }
+
+.value{ fill:#eaeef5; font-size:28px; font-weight:800; }
+.label{ fill:#9aa5bd; font-size:12px; }
+
+.handle{ fill:#9fb7ff; filter: drop-shadow(0 2px 6px rgba(0,0,0,.45)); }
