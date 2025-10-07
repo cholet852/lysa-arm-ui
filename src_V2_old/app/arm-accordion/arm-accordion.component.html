@@ -1,9 +1,0 @@
-<div class="accordion" [class.disabled]="disabled">
-  <button class="head" (click)="toggle()" [disabled]="disabled">
-    <span>{{title}}</span>
-    <span class="chev" [class.open]="open">▾</span>
-  </button>
-  <div class="body" *ngIf="open">
-    <ng-content></ng-content>
-  </div>
-</div>

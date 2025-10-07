@@ -1,8 +1,11 @@
 
-import { Component, AfterViewInit, ElementRef, Input, OnChanges, HostListener } from '@angular/core';
+import { Component, AfterViewInit, ElementRef, Input, OnChanges, HostListener, Output, EventEmitter } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { JointState } from '../models';
+
+type Axis = 'x'|'y'|'z';
 
 @Component({
   selector: 'app-three-viewer',
@@ -11,13 +14,37 @@ import { JointState } from '../models';
   styleUrls: ['./three-viewer.component.scss']
 })
 export class ThreeViewerComponent implements AfterViewInit, OnChanges{
+
   @Input() states: Record<number,JointState> = {};
+  @Output() statesChange = new EventEmitter<Record<number,JointState>>();
+
+  private effFrame!: THREE.Object3D; // repère local (attaché au torse)
+
   private scene = new THREE.Scene();
   private cam!:THREE.PerspectiveCamera;
   private renderer!:THREE.WebGLRenderer;
   private host?:HTMLElement;
   private controls!:OrbitControls;
+
+  // rig parts
   private parts: {[k:string]:THREE.Object3D} = {};
+
+  // === IK additions ===
+  private target!: THREE.Mesh;
+  private tcontrols!: TransformControls;
+  private dragging = false;
+
+  // limites et mapping cohérents avec applyStateToRig()
+  // 0 Shoulder: X (sign -1) | 1 Upper: Z (sign -1) | 2 Elbow: X (sign -1) | 3 Wrist: X (sign +1)
+  private IK_CFG = [
+    { name:'rShoulder',   axis:'x' as Axis, min:-180, max:  30 },
+    { name:'rUpperPitch', axis:'z' as Axis, min:-180, max:   5 },
+    { name:'rElbow',      axis:'x' as Axis, min:-150, max:   0 },
+    { name:'rWrist',      axis:'x' as Axis, min: -90, max:  90 },
+  ];
+
+  private lastEmit = 0;
+  private readonly EMIT_DT = 40; // ms ~25 Hz pour ne pas spammer
 
   constructor(private el:ElementRef){}
 
@@ -46,9 +73,11 @@ export class ThreeViewerComponent implements AfterViewInit, OnChanges{
     this.controls.target.set(0,1.1,0);
 
     this.buildHumanoid();
+    this.addIKTargetAndControls();   // <<<<<<<<<<  effector + TransformControls
 
     const render = ()=>{ requestAnimationFrame(render); this.controls.update(); this.renderer.render(this.scene, this.cam); };
     render();
+
     this.applyStateToRig();
     window.addEventListener('resize', ()=> this.onResize());
   }
@@ -106,8 +135,207 @@ export class ThreeViewerComponent implements AfterViewInit, OnChanges{
     makeLeg('R'); makeLeg('L');
   }
 
+  // ---------------- IK: effector + controls ----------------
+  private addIKTargetAndControls() 
+  {
+    // Repère local pour l’effecteur : même repère que le torse
+    this.effFrame = new THREE.Object3D();
+    const chest = this.getNode('chest');
+    chest.add(this.effFrame);
+    this.effFrame.position.set(0, 0, 0);
+    this.effFrame.quaternion.identity();
+    this.effFrame.updateMatrixWorld(true);
+
+    // Sphère "effector" — ATTENTION: parentée à effFrame (pas à scene)
+    const g = new THREE.SphereGeometry(0.06, 16, 16);
+    const m = new THREE.MeshBasicMaterial({ wireframe: true });
+    this.target = new THREE.Mesh(g, m);
+
+    this.effFrame.add(this.target);
+
+    // Positionner la cible exactement sur la main (en coords locales effFrame)
+    this.placeTargetOnRightHand();
+
+    // TransformControls en repère LOCAL (celui d'effFrame/chest)
+    this.tcontrols = new TransformControls(this.cam, this.renderer.domElement);
+    this.tcontrols.setMode('translate');
+
+    this.tcontrols.setSpace('local');     // <<< clé : repère du torse
+    this.tcontrols.showY = true;         // bloque Y pour éviter “lever le bras”
+    this.tcontrols.showX = true;
+    this.tcontrols.showZ = true;
+
+    this.scene.add(this.tcontrols.getHelper());
+    this.tcontrols.attach(this.target);
+
+    // Conflits d'inputs
+    this.tcontrols.addEventListener('dragging-changed', (e: any) => {
+    this.dragging = e.value;
+    this.controls.enabled = !this.dragging;
+    if (!this.dragging) 
+    {
+      this.lastEmit = 0;
+      this.statesChange.emit(this.states); // ← nouvelle ref finale
+    }
+    });
+
+    // Résoudre IK uniquement pendant le drag
+    this.tcontrols.addEventListener('change', () => {
+      if (!this.dragging) return; // pas d'IK au simple survol
+
+      const targetW = this.target.getWorldPosition(new THREE.Vector3());
+      this.solveIKToTarget(targetW); // -> met angle & target à jour
+
+      // Émettre pendant le drag (throttle) pour rafraîchir les champs/knobs
+      const now = performance.now();
+      if (now - this.lastEmit > this.EMIT_DT) {
+        this.lastEmit = now;
+        // nouvelle référence pour que l’UI détecte le changement même en OnPush
+        this.statesChange.emit({ ...this.states });
+      }
+    });
+
+    // Évite les events parasites
+    this.renderer.domElement.addEventListener('pointerdown', (e) => {
+      if ((this.tcontrols as any).axis) e.stopPropagation();
+    });
+    this.renderer.domElement.addEventListener('pointermove', (e) => {
+      if (this.dragging) e.stopPropagation();
+    });
+
+    // (Option) Si “avant” te semble inversé, décommente une de ces lignes :
+    //this.effFrame.rotateY(Math.PI);      // inverse le Z avant/arrière
+    this.effFrame.rotateY(Math.PI * 0.5); // si ton modèle a +X = avant
+  }
+
+  // Place la cible sur le bout de la main droite en coordonnées locales d'effFrame
+  private placeTargetOnRightHand() 
+  {
+     // forcer la MAJ des world matrices
+    this.scene.updateMatrixWorld(true);
+    this.effFrame.updateMatrixWorld(true);
+
+    const pWorld = this.getEndEffectorWorldPos();          // position monde du tip
+    const pLocal = this.effFrame.worldToLocal(pWorld.clone()); // converti vers repère torse
+    this.target.position.copy(pLocal);
+    this.target.updateMatrixWorld(true);
+  }
+
+
+  // utilitaires
+  private getNode(name:string){ return this.parts[name]; }
+  private clamp(v:number,min:number,max:number){ return Math.max(min, Math.min(max, v)); }
+
+  private getEndEffectorWorldPos(): THREE.Vector3 {
+    // bout de la “main” droite: 6 cm sous le pivot du poignet
+    const wrist = this.getNode('rWrist');
+    const localTip = new THREE.Vector3(0, -0.06, 0);
+    return wrist.localToWorld(localTip.clone());
+  }
+
+  private jointAxisWorld(j: THREE.Object3D, axis: Axis): THREE.Vector3 {
+    const m = new THREE.Matrix4().extractRotation(j.matrixWorld);
+    const ax = new THREE.Vector3(axis==='x'?1:0, axis==='y'?1:0, axis==='z'?1:0);
+    return ax.applyMatrix4(m).normalize();
+  }
+
+  private getJointAngleDeg(j: THREE.Object3D, axis: Axis): number {
+    const e = (j as any).rotation as THREE.Euler;
+    const rad = axis==='x' ? e.x : axis==='y' ? e.y : e.z;
+    return THREE.MathUtils.radToDeg(rad);
+  }
+
+  private setJointAngleDeg(j: THREE.Object3D, axis: Axis, deg: number){
+    const e = (j as any).rotation as THREE.Euler;
+    const rad = THREE.MathUtils.degToRad(deg);
+    if (axis==='x') e.x = rad;
+    if (axis==='y') e.y = rad;
+    if (axis==='z') e.z = rad;
+  }
+
+  private normalizeDeg(a:number){ 
+    // renvoie dans [-180, 180)
+    return ((a + 180) % 360 + 360) % 360 - 180; 
+  }
+
+
+  // une passe CCD (du poignet vers l’épaule)
+  private ikIterateOnce(targetW: THREE.Vector3){
+    let endW = this.getEndEffectorWorldPos();
+    const chain = this.IK_CFG.slice().reverse(); // rWrist -> rShoulder
+
+    for (const link of chain){
+      const joint = this.getNode(link.name);
+      if (!joint) continue;
+
+      const jPos = new THREE.Vector3();
+      joint.getWorldPosition(jPos);
+
+      const vEnd = endW.clone().sub(jPos);
+      const vTar = targetW.clone().sub(jPos);
+      if (vEnd.lengthSq()<1e-8 || vTar.lengthSq()<1e-8) continue;
+
+      const axisW = this.jointAxisWorld(joint, link.axis);
+      const vEndP = vEnd.clone().sub(axisW.clone().multiplyScalar(vEnd.dot(axisW)));
+      const vTarP = vTar.clone().sub(axisW.clone().multiplyScalar(vTar.dot(axisW)));
+      if (vEndP.lengthSq()<1e-10 || vTarP.lengthSq()<1e-10) continue;
+      vEndP.normalize(); vTarP.normalize();
+
+      const cross = new THREE.Vector3().crossVectors(vEndP, vTarP);
+      const sgn = Math.sign(cross.dot(axisW));
+      let delta = THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(cross.length(), -1, 1)));
+      delta *= sgn;
+
+      const gain = 0.6; // stabilité
+      const cur = this.normalizeDeg(this.getJointAngleDeg(joint, link.axis));
+      let next  = this.normalizeDeg(cur + delta * gain);
+      next = this.clamp(next, link.min, link.max);
+      this.setJointAngleDeg(joint, link.axis, next);
+
+      // met à jour la position de l'effecteur après l’ajustement de ce joint
+      endW = this.getEndEffectorWorldPos();
+    }
+  }
+
+  private solveIKToTarget(targetW: THREE.Vector3){
+    for (let i=0;i<10;i++) this.ikIterateOnce(targetW);
+    this.syncStatesFromRig(); // met à jour states[j].target
+  }
+
+  private syncStatesFromRig() 
+  {
+    const d = THREE.MathUtils.radToDeg;
+
+    const rShoulder   = (this.getNode('rShoulder')   as any)?.rotation;
+    const rUpperPitch = (this.getNode('rUpperPitch') as any)?.rotation;
+    const rElbow      = (this.getNode('rElbow')      as any)?.rotation;
+    const rWrist      = (this.getNode('rWrist')      as any)?.rotation;
+    if (!rShoulder || !rUpperPitch || !rElbow || !rWrist) return;
+
+    const vals = [
+      -d(rShoulder.x),     // 0 Shoulder
+      -d(rUpperPitch.z),   // 1 Upper
+      -d(rElbow.x),        // 2 Elbow
+      +d(rWrist.x),        // 3 Wrist
+    ];
+
+    // ✅ NEW: rebuild immutably
+    const next: Record<number, JointState> = { ...this.states };
+    vals.forEach((v, j) => {
+      const prev = this.states[j] ?? ({
+        id: j, angle: 0, target: 0, speed: 0, accel: 0, current: 0, microsteps: 0,
+        flags: { ok: true }
+      } as any);
+      next[j] = { ...prev, angle: v, target: v };   // ← nouvelle référence par joint
+    });
+
+    this.states = next;  // ← nouvelle référence map
+  }
+
   private applyStateToRig()
   {
+    if (this.dragging) return;   // pendant drag, on laisse la main suivre le gizmo
+
     const d2r = THREE.MathUtils.degToRad;
 
     // états
@@ -147,5 +375,11 @@ export class ThreeViewerComponent implements AfterViewInit, OnChanges{
       if (cfg.axis === 'y') (obj as any).rotation.y = rad;
       if (cfg.axis === 'z') (obj as any).rotation.z = rad;
     }
+
+    this.scene.updateMatrixWorld(true);
+
+    // à la fin : recale la cible sur la main pour garder le gizmo dessus
+    if (this.target) this.placeTargetOnRightHand();
+
   }
 }

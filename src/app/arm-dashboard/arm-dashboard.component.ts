@@ -11,28 +11,24 @@ import { ThreeViewerComponent } from '../three-viewer/three-viewer.component';
   selector: 'app-arm-dashboard',
   standalone: true,
   imports: [ArmAccordionComponent, JointCardComponent, ThreeViewerComponent],
-  template: `
-  <div class="split">
-    <div class="left">
-      <app-arm-accordion title="Right Arm" [defaultOpen]="true">
-        <app-joint-card [joint]="0" title="Shoulder"   [s]="states[0]" [min]="-30" [max]="180"></app-joint-card>
-        <app-joint-card [joint]="1" title="Upper Arm"  [s]="states[1]" [min]="-5"  [max]="180"></app-joint-card>
-        <app-joint-card [joint]="2" title="Elbow"      [s]="states[2]" [min]="0"   [max]="150"></app-joint-card>
-        <app-joint-card [joint]="3" title="Wrist"      [s]="states[3]" [min]="-90" [max]="90"></app-joint-card>
-
-      </app-arm-accordion>
-      <app-arm-accordion title="Left Arm (bientôt)" [disabled]="true"></app-arm-accordion>
-    </div>
-    <div class="right">
-      <app-three-viewer [states]="states"></app-three-viewer>
-    </div>
-  </div>
-  `
+  templateUrl: "./arm-dashboard.component.html",
 })
-export class ArmDashboardComponent implements OnInit, OnDestroy{
+
+export class ArmDashboardComponent implements OnInit, OnDestroy
+{
   states: Record<number, JointState> = {};
   sub: Subscription = new Subscription();
+
   constructor(public bus: CanBridgeService) {}
-  ngOnInit(){ this.bus.connect(); this.sub = this.bus.states$.subscribe(s=> this.states = s); }
-  ngOnDestroy(){ this.sub.unsubscribe(); }
+
+  ngOnInit()
+  { 
+    this.bus.connect(); 
+    this.sub = this.bus.states$.subscribe(s=> this.states = s); 
+  }
+  
+  ngOnDestroy()
+  { 
+    this.sub.unsubscribe(); 
+  }
 }
